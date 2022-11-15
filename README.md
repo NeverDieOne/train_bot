@@ -14,3 +14,8 @@ Template for telegram bot on python-telegram-bot
 ## Установка зависимостей для разработки
 
 - `pip install -r requirements-dev.txt`
+
+## Запуск с помощью Docker
+
+- `docker build -t train:latest .`
+- `docker run --name=tictac --env-file={.env} --volume={data_path}:/app/data --restart=always -d train:latest`

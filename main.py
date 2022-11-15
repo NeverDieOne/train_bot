@@ -1,15 +1,16 @@
 import logging
-from enum import StrEnum, auto
-from textwrap import dedent
 from datetime import date
+from enum import StrEnum, auto
+from pathlib import Path
+from textwrap import dedent
 
 from environs import Env
 from httpx import AsyncClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
                           ContextTypes, ConversationHandler, MessageHandler,
                           PicklePersistence, filters)
-from telegram.constants import ParseMode
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +170,10 @@ def main() -> None:
     env = Env()
     env.read_env()
 
-    persistence = PicklePersistence('data.pickle')
+    data_path = Path('data')
+    data_path.mkdir(exist_ok=True)
+
+    persistence = PicklePersistence(data_path / 'data.pickle')
 
     application = Application\
         .builder()\
