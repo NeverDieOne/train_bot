@@ -3,11 +3,11 @@ from enum import StrEnum, auto
 from textwrap import dedent
 
 from environs import Env
+from httpx import AsyncClient
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
-                          ContextTypes, ConversationHandler, PicklePersistence,
-                          filters, MessageHandler)
-
+                          ContextTypes, ConversationHandler, MessageHandler,
+                          PicklePersistence, filters)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ async def start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> States:
-    await update.message.reply_text(
+    message = await update.message.reply_text(
         text=dedent('''\
         Привет! Этот бот помогает в ежедневных тренировках.
         Он умеет напоминать о том что нужно сделать зарядку,
@@ -35,6 +35,7 @@ async def start(
         '''),
         reply_markup=MAIN_MENU
     )
+    context.user_data['message_id'] = message.id  # type: ignore
     return States.MENU
 
 
@@ -55,14 +56,22 @@ async def handle_load_train(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> States:
-    print(update)
+    file = await context.bot.get_file(update.message.document.file_id)
 
-    await update.message.edit_text(
+    async with AsyncClient() as client:
+        response = await client.get(file.file_path)
+        response.raise_for_status()
+    context.user_data['train'] = response.json()  # type: ignore
+
+    await context.bot.edit_message_text(
         text='Файл успешно загружен',
+        chat_id=update.effective_chat.id,  # type: ignore
+        message_id=context.user_data['message_id'],  # type: ignore
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton('Назад', callback_data='back')
         ]])
     )
+    await update.message.delete()
     return States.ADD_TRAIN
 
 
