@@ -1,6 +1,7 @@
 import logging
 from enum import StrEnum, auto
 from textwrap import dedent
+from datetime import date
 
 from environs import Env
 from httpx import AsyncClient
@@ -75,10 +76,14 @@ async def handle_load_train(
     return States.ADD_TRAIN
 
 
-async def handle_start_train(
+async def handle_train(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> States:
+    last_passed = context.user_data.get('last_passed', date.today())  # type: ignore
+    if date.today() > last_passed:
+        context.user_data['current_step'] = 1  # type: ignore
+
     user_train = context.user_data.get('train')  # type: ignore
     if not user_train:
         await update.callback_query.edit_message_text(
@@ -90,6 +95,33 @@ async def handle_start_train(
         return States.TRAIN
 
 
+    if 'next_step' in update.callback_query.data:
+        current_step = context.user_data['current_step']  # type: ignore
+        context.user_data['current_step'] = current_step + 1  # type: ignore
+
+    current_step = context.user_data.get('current_step', 1)  # type: ignore
+    step = user_train.get(f'step_{current_step}')
+
+    if not step:
+        context.user_data['last_passed'] = date.today()  # type: ignore
+        await update.callback_query.edit_message_text(
+            text='Тренировка завершена!',
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton('Назад', callback_data='back')
+            ]])
+        )
+        return States.TRAIN
+
+    await update.callback_query.edit_message_text(
+        text=dedent(f'''\
+        Название: {step['title']}
+        Описание: {step['description']}
+        '''),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton('Следующий шаг', callback_data='next_step')],
+            [InlineKeyboardButton('Назад', callback_data='back')]
+        ])
+    )
     return States.TRAIN
 
 
@@ -134,14 +166,15 @@ def main() -> None:
         states={
             States.MENU: [
                 CallbackQueryHandler(handle_add_train, 'add_train'),
-                CallbackQueryHandler(handle_start_train, 'train')
+                CallbackQueryHandler(handle_train, 'train')
             ],
             States.ADD_TRAIN: [
                 MessageHandler(filters.ATTACHMENT, handle_load_train),
                 CallbackQueryHandler(handle_back, 'back')
             ],
             States.TRAIN: [
-                CallbackQueryHandler(handle_back, 'back')
+                CallbackQueryHandler(handle_back, 'back'),
+                CallbackQueryHandler(handle_train, 'next_step')
             ]
         },
         fallbacks=[],
