@@ -9,6 +9,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
                           ContextTypes, ConversationHandler, MessageHandler,
                           PicklePersistence, filters)
+from telegram.constants import ParseMode
 
 logger = logging.getLogger(__name__)
 
@@ -104,24 +105,35 @@ async def handle_train(
 
     if not step:
         context.user_data['last_passed'] = date.today()  # type: ignore
-        await update.callback_query.edit_message_text(
+        message = await context.bot.send_message(
+            chat_id=update.effective_chat.id,  # type: ignore
             text='Тренировка завершена!',
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton('Назад', callback_data='back')
             ]])
         )
-        return States.TRAIN
+    else:
+        message = await context.bot.send_photo(
+            chat_id=update.effective_chat.id,  # type: ignore
+            photo=step['image'],
+            caption=dedent(f'''\
+            <b>Название</b>: 
+            {step['title']}
 
-    await update.callback_query.edit_message_text(
-        text=dedent(f'''\
-        Название: {step['title']}
-        Описание: {step['description']}
-        '''),
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton('Следующий шаг', callback_data='next_step')],
-            [InlineKeyboardButton('Назад', callback_data='back')]
-        ])
+            <b>Описание</b>:
+            {step['description']}
+            '''),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton('Следующий шаг', callback_data='next_step')],
+                [InlineKeyboardButton('Назад', callback_data='back')]
+            ]),
+            parse_mode=ParseMode.HTML
+        )
+    await context.bot.delete_message(
+        chat_id=update.effective_chat.id,  # type: ignore
+        message_id=context.user_data['message_id']  # type: ignore
     )
+    context.user_data['message_id'] = message.id  # type: ignore
     return States.TRAIN
 
 
@@ -139,6 +151,13 @@ async def handle_back(
     )
 
     return States.MENU
+
+
+async def reset_training(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    context.user_data['current_step'] = 1  # type: ignore
 
 
 def main() -> None:
@@ -184,6 +203,7 @@ def main() -> None:
     )
 
     application.add_handler(conv_handler)
+    application.add_handler(CommandHandler('reset', reset_training))
     application.run_polling()
 
 
