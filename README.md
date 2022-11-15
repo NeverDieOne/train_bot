@@ -18,4 +18,4 @@ Template for telegram bot on python-telegram-bot
 ## Запуск с помощью Docker
 
 - `docker build -t train:latest .`
-- `docker run --name=tictac --env-file={.env} --volume={data_path}:/app/data --restart=always -d train:latest`
+- `docker run --name=train --env-file={.env} --volume={data_path}:/app/data --restart=always -d train:latest`
