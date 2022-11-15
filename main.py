@@ -12,9 +12,15 @@ from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
 logger = logging.getLogger(__name__)
 
 
+MAIN_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton('Начать тренировку', callback_data='train')],
+    [InlineKeyboardButton('Добавить тренировку', callback_data='add_train')],
+])
+
 class States(StrEnum):
     MENU = auto()
     ADD_TRAIN = auto()
+    TRAIN = auto()
 
 
 async def start(
@@ -27,9 +33,7 @@ async def start(
         Он умеет напоминать о том что нужно сделать зарядку,
         а так же показывает этапы её прохождения.
         '''),
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton('Добавить тренировку', callback_data='add_train')
-        ]])
+        reply_markup=MAIN_MENU
     )
     return States.MENU
 
@@ -62,6 +66,24 @@ async def handle_load_train(
     return States.ADD_TRAIN
 
 
+async def handle_start_train(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> States:
+    user_train = context.user_data.get('train')  # type: ignore
+    if not user_train:
+        await update.callback_query.edit_message_text(
+            text='У тебя нет тренировки, добавь её сначала',
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton('Назад', callback_data='back')
+            ]])
+        )
+        return States.TRAIN
+
+
+    return States.TRAIN
+
+
 async def handle_back(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -72,9 +94,7 @@ async def handle_back(
         Он умеет напоминать о том что нужно сделать зарядку,
         а так же показывает этапы её прохождения.
         '''),
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton('Добавить тренировку', callback_data='add_train')
-        ]])
+        reply_markup=MAIN_MENU
     )
 
     return States.MENU
@@ -104,10 +124,14 @@ def main() -> None:
         ],
         states={
             States.MENU: [
-                CallbackQueryHandler(handle_add_train, 'add_train')
+                CallbackQueryHandler(handle_add_train, 'add_train'),
+                CallbackQueryHandler(handle_start_train, 'train')
             ],
             States.ADD_TRAIN: [
                 MessageHandler(filters.ATTACHMENT, handle_load_train),
+                CallbackQueryHandler(handle_back, 'back')
+            ],
+            States.TRAIN: [
                 CallbackQueryHandler(handle_back, 'back')
             ]
         },
