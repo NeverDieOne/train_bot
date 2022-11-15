@@ -142,12 +142,27 @@ async def handle_back(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> States:
+    text = dedent('''\
+    Привет! Этот бот помогает в ежедневных тренировках.
+    Он умеет напоминать о том что нужно сделать зарядку,
+    а так же показывает этапы её прохождения.
+    ''')
+
+    if not update.message:
+        message = await context.bot.send_message(
+            chat_id=update.effective_chat.id,  # type: ignore
+            text=text,
+            reply_markup=MAIN_MENU
+        )
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id,  # type: ignore
+            message_id=context.user_data['message_id']  # type: ignore
+        )
+        context.user_data['message_id'] = message.id  # type: ignore
+        return States.MENU
+
     await update.callback_query.edit_message_text(
-        text=dedent('''\
-        Привет! Этот бот помогает в ежедневных тренировках.
-        Он умеет напоминать о том что нужно сделать зарядку,
-        а так же показывает этапы её прохождения.
-        '''),
+        text=text,
         reply_markup=MAIN_MENU
     )
 
