@@ -3,15 +3,18 @@ from enum import StrEnum, auto
 from textwrap import dedent
 
 from environs import Env
-from telegram import Update
-from telegram.ext import (Application, CommandHandler, ContextTypes,
-                          ConversationHandler, PicklePersistence)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
+                          ContextTypes, ConversationHandler, PicklePersistence,
+                          filters, MessageHandler)
+
 
 logger = logging.getLogger(__name__)
 
 
 class States(StrEnum):
     MENU = auto()
+    ADD_TRAIN = auto()
 
 
 async def start(
@@ -19,13 +22,63 @@ async def start(
     context: ContextTypes.DEFAULT_TYPE
 ) -> States:
     await update.message.reply_text(
-        dedent('''\
+        text=dedent('''\
         Привет! Этот бот помогает в ежедневных тренировках.
         Он умеет напоминать о том что нужно сделать зарядку,
         а так же показывает этапы её прохождения.
-        ''')
+        '''),
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton('Добавить тренировку', callback_data='add_train')
+        ]])
     )
     return States.MENU
+
+
+async def handle_add_train(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> States:
+    await update.callback_query.edit_message_text(
+        text='Пришли мне json-файл с описанием тренировки',
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton('Назад', callback_data='back')
+        ]])
+    )
+    return States.ADD_TRAIN
+
+
+async def handle_load_train(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> States:
+    print(update)
+
+    await update.message.edit_text(
+        text='Файл успешно загружен',
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton('Назад', callback_data='back')
+        ]])
+    )
+    return States.ADD_TRAIN
+
+
+async def handle_back(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> States:
+    await update.callback_query.edit_message_text(
+        text=dedent('''\
+        Привет! Этот бот помогает в ежедневных тренировках.
+        Он умеет напоминать о том что нужно сделать зарядку,
+        а так же показывает этапы её прохождения.
+        '''),
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton('Добавить тренировку', callback_data='add_train')
+        ]])
+    )
+
+    return States.MENU
+
 
 def main() -> None:
     logging.basicConfig(
@@ -50,11 +103,18 @@ def main() -> None:
             CommandHandler('start', start)
         ],
         states={
-            States.MENU: []
+            States.MENU: [
+                CallbackQueryHandler(handle_add_train, 'add_train')
+            ],
+            States.ADD_TRAIN: [
+                MessageHandler(filters.ATTACHMENT, handle_load_train),
+                CallbackQueryHandler(handle_back, 'back')
+            ]
         },
         fallbacks=[],
         persistent=True,
-        name='main_conversation'
+        name='main_conversation',
+        allow_reentry=True
     )
 
     application.add_handler(conv_handler)
